@@ -108,6 +108,12 @@ async function run() {
       res.send(result);
     });
 
+    // Get all properties
+    app.get("/requestedProperties", async (req, res) => {
+      const result = await requestedPropertiesCollection.find().toArray();
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
