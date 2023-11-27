@@ -99,6 +99,15 @@ async function run() {
       res.send(result);
     });
 
+    // properties saving in database
+    app.post("/requestedProperties", async (req, res) => {
+      const requestProperty = req.body;
+      const result = await requestedPropertiesCollection.insertOne(
+        requestProperty
+      );
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
