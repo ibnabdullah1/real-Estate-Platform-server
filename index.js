@@ -3,7 +3,6 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const globalErrorHandler = require("./src/middlewares/globalErrorHandler");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
@@ -29,53 +28,75 @@ const client = new MongoClient(uri, {
   },
 });
 
+// middlewares
 const verifyToken = (req, res, next) => {
-  const token = req?.cookies?.token;
-  // console.log('token in the middleware', token);
-  // no token available
-  if (!token) {
+  console.log(req.headers.authorization);
+  if (!req.headers.authorization) {
     return res.status(401).send({ message: "unauthorized access" });
+  }
+  const token = req.headers.authorization.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "unauthorized access " });
   }
   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-      return res.status(401).send({ message: "unauthorized access" });
+      return res.status(403).send({ message: "Forbidden access" });
+    } else {
+      req.decoded = decoded;
+      next();
     }
-    req.user = decoded;
-    next();
   });
 };
-
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
     const usersCollection = client.db("realEstateDB").collection("users");
-    const propertiesCollection = client
+    const requestedPropertiesCollection = client
       .db("realEstateDB")
-      .collection("properties");
+      .collection("requestedProperties");
+    const reviewsCollection = client.db("realEstateDB").collection("reviews");
+    const wishlistsCollection = client
+      .db("realEstateDB")
+      .collection("wishlists");
 
-    // auth related api
-    app.post("/jwt", async (req, res) => {
+    app.post("/jwt", (req, res) => {
       const user = req.body;
-      console.log("user for token", user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1h",
+        expiresIn: "3h",
       });
 
-      res
-        .cookie("token", token, {
-          httpOnly: true,
-          secure: true,
-          sameSite: "none",
-        })
-        .send({ success: true });
+      res.send({ token });
     });
 
     app.post("/logout", async (req, res) => {
       const user = req.body;
       console.log("logging out", user);
       res.clearCookie("token", { maxAge: 0 }).send({ success: true });
+    });
+
+    // Save or modify user email, status in DB
+    app.put("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const user = req.body;
+      const query = { email: email };
+      const options = { upsert: true };
+      const isExist = await usersCollection.findOne(query);
+      if (isExist) return res.send(isExist);
+      const result = await usersCollection.updateOne(
+        query,
+        {
+          $set: { ...user, timestamp: Date.now() },
+        },
+        options
+      );
+      res.send(result);
+    });
+
+    app.get("/users", async (req, res) => {
+      const result = await usersCollection.find().toArray();
+      res.send(result);
     });
 
     // Send a ping to confirm a successful connection
