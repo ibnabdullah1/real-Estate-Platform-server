@@ -144,6 +144,21 @@ async function run() {
       );
       res.send(result);
     });
+
+    // Agent properties deleted api
+    app.delete("/agentProperty/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await requestedPropertiesCollection.deleteOne(query);
+      res.send(result);
+    });
+    app.get("/properties/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await requestedPropertiesCollection.findOne(query);
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
