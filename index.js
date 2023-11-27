@@ -125,7 +125,25 @@ async function run() {
       const result = await requestedPropertiesCollection.findOne(query);
       res.send(result);
     });
-
+    // Agent properties updated api
+    app.put("/requestedProperty/:id", async (req, res) => {
+      const id = req.params.id;
+      const property = await req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          location: property.location,
+          title: property.title,
+          price: property.price,
+          image: property.image,
+        },
+      };
+      const result = await requestedPropertiesCollection.updateOne(
+        filter,
+        updateDoc
+      );
+      res.send(result);
+    });
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
