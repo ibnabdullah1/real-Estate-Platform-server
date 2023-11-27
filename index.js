@@ -187,6 +187,33 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      const result = await usersCollection.findOne({ email });
+      res.send(result);
+    });
+
+    // wishlist  api
+
+    // Save user wishlists in DB
+    app.post("/wishlists", async (req, res) => {
+      const wishlists = req.body;
+      const id = wishlists._id;
+      const query = { _id: id };
+      const isExist = await wishlistsCollection.findOne(query);
+      if (isExist) {
+        return res.send({ message: "Is already added in wishlist " });
+      }
+      const result = await wishlistsCollection.insertOne(wishlists);
+      res.send(result);
+    });
+    app.get("/wishlists/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { buyerEmail: email };
+      const result = await wishlistsCollection.find(query).toArray();
+      res.send(result);
+    });
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log(
