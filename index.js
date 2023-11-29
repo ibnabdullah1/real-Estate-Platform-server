@@ -16,7 +16,8 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
-
+//STRIPE_TEST_SECRET_KEY
+const stripe = require("stripe")(`${process.env.STRIPE_TEST_SECRET_KEY}`);
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.rjnekog.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -30,7 +31,6 @@ const client = new MongoClient(uri, {
 
 // middlewares
 const verifyToken = (req, res, next) => {
-  console.log(req.headers.authorization);
   if (!req.headers.authorization) {
     return res.status(401).send({ message: "unauthorized access" });
   }
@@ -53,6 +53,7 @@ async function run() {
     await client.connect();
 
     const usersCollection = client.db("realEstateDB").collection("users");
+    const paymentCollection = client.db("realEstateDB").collection("payments");
     const requestedPropertiesCollection = client
       .db("realEstateDB")
       .collection("requestedProperties");
@@ -60,6 +61,10 @@ async function run() {
     const wishlistsCollection = client
       .db("realEstateDB")
       .collection("wishlists");
+    const offersCollection = client.db("realEstateDB").collection("offers");
+    const advertiseCollection = client
+      .db("realEstateDB")
+      .collection("advertises");
 
     app.post("/jwt", (req, res) => {
       const user = req.body;
@@ -125,6 +130,25 @@ async function run() {
       const result = await requestedPropertiesCollection.findOne(query);
       res.send(result);
     });
+    // requestedProperty
+
+    // Agent properties updated api
+    app.put("/updateStatus/:id", async (req, res) => {
+      const id = req.params.id;
+      const message = await req.body;
+
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          status: message.status,
+        },
+      };
+      const result = await requestedPropertiesCollection.updateOne(
+        filter,
+        updateDoc
+      );
+      res.send(result);
+    });
     // Agent properties updated api
     app.put("/requestedProperty/:id", async (req, res) => {
       const id = req.params.id;
@@ -145,6 +169,24 @@ async function run() {
       res.send(result);
     });
 
+    // admin ads properties collection
+    app.put("/addAdsStatus/:id", async (req, res) => {
+      const id = req.params.id;
+      const message = await req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          adsStatus: message.adsStatus,
+        },
+      };
+
+      const result = await requestedPropertiesCollection.updateOne(
+        filter,
+        updateDoc
+      );
+      res.send(result);
+    });
+
     // Agent properties deleted api
     app.delete("/agentProperty/:id", async (req, res) => {
       const id = req.params.id;
@@ -158,7 +200,6 @@ async function run() {
       const result = await requestedPropertiesCollection.findOne(query);
       res.send(result);
     });
-
     //get properties for agent
     app.get("/addedProperty/agent/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
@@ -170,7 +211,7 @@ async function run() {
 
     app.get("/addedProperty/:id", async (req, res) => {
       const id = req.params.id;
-      console.log(id);
+      // console.log(id);
       const query = { _id: new ObjectId(id) };
       const result = await requestedPropertiesCollection.findOne(query);
       res.send(result);
@@ -187,15 +228,54 @@ async function run() {
       res.send(result);
     });
 
+    // Users related api methods
+
     app.get("/user/:email", async (req, res) => {
       const email = req.params.email;
       const result = await usersCollection.findOne({ email });
       res.send(result);
     });
 
-    // wishlist  api
+    app.delete("/users/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollection.deleteOne(query);
+      res.send(result);
+    });
 
-    // Save user wishlists in DB
+    // Users Role updated methods
+    app.put("/user/:id", async (req, res) => {
+      const id = req.params.id;
+      const message = await req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: message.role,
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    // Fraud user data deleted all databases collections
+    app.post("/fraudUserData", async (req, res) => {
+      const data = req.body;
+      const deleteAds = await advertiseCollection.deleteMany({
+        _id: { $in: data },
+      });
+
+      const query = {
+        _id: {
+          $in: data.map((id) => new ObjectId(id)),
+        },
+      };
+      const deleteProperties = await requestedPropertiesCollection.deleteMany(
+        query
+      );
+      res.send({ deleteAds, deleteProperties });
+    });
+
+    // wishlist  api
     app.post("/wishlists", async (req, res) => {
       const wishlists = req.body;
       const id = wishlists._id;
@@ -211,6 +291,183 @@ async function run() {
       const email = req.params.email;
       const query = { buyerEmail: email };
       const result = await wishlistsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    app.get("/wishlist/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id };
+      const result = await wishlistsCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.delete("/wishlist/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id };
+      const result = await wishlistsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // reviews related api
+    // Save user reviews in DB
+    app.post("/reviews", async (req, res) => {
+      const review = req.body;
+      const result = await reviewsCollection.insertOne(review);
+      res.send(result);
+    });
+    // specific user reviews
+    app.get("/reviews/:username", async (req, res) => {
+      const username = req.params.username;
+      const query = { reviewerName: username };
+      const result = await reviewsCollection.find(query).toArray();
+      res.send(result);
+    });
+    // Get all reviews
+    app.get("/reviews", async (req, res) => {
+      const result = await reviewsCollection.find().toArray();
+      res.send(result);
+    });
+    app.delete("/review/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await reviewsCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // user  offer related api
+
+    // add offersItem
+    app.post("/addedOffer", async (req, res) => {
+      const offerItem = req.body;
+      const result = await offersCollection.insertOne(offerItem);
+      res.send(result);
+    });
+
+    // All coffer item(get method)
+
+    app.get("/addedOfferPayment/:id", async (req, res) => {
+      const id = req.params.id;
+      // console.log(id);
+      const query = { _id: id };
+      const result = await offersCollection.findOne(query);
+      res.send(result);
+    });
+
+    app.get("/addedOffer/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { buyerEmail: email };
+      const result = await offersCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // Requested properties in offers collection(agent)
+    app.get("/requestOffer/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = { "agent.email": email };
+      const result = await offersCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // Agent sold properties
+    app.get("/soldProperties/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const query = {
+        status: "bought",
+        "agent.email": email,
+      };
+      const result = await offersCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // New field added
+    app.put("/offerDataUpdate/:id", async (req, res) => {
+      const id = req.params.id;
+      const data = await req.body;
+      const filter = { _id: id };
+      console.log(filter);
+      const updateDoc = {
+        $set: {
+          status: data.status,
+          transactionId: data.transactionId,
+        },
+      };
+      const result = await offersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    // status update
+    app.put("/requestOffer/:id", async (req, res) => {
+      const id = req.params.id;
+      const message = await req.body;
+      const filter = { _id: id };
+      const updateDoc = {
+        $set: {
+          status: message.status,
+        },
+      };
+      const result = await offersCollection.updateOne(filter, updateDoc);
+      res.send(result);
+    });
+
+    //payment intended
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
+
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const Result = await paymentCollection.insertOne(payment);
+      res.send(Result);
+    });
+
+    // Advertisement related api
+    // added property for advertisement
+    app.post("/advertisement", async (req, res) => {
+      try {
+        const advertisement = req.body;
+        const collectionLength =
+          await advertiseCollection.estimatedDocumentCount();
+        if (collectionLength < 6) {
+          const result = await advertiseCollection.insertOne(advertisement);
+          res.send({ message: "success" });
+        } else {
+          res.send({
+            message: "Advertisement collection must have more than 6 items.",
+          });
+        }
+      } catch (error) {
+        console.error(error.message);
+      }
+    });
+    app.get("/advertisementProperties", async (req, res) => {
+      const result = await advertiseCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.delete("/removeAds/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id };
+      const result = await advertiseCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // fraud agent api
+
+    app.get("/fraudAgent/:email", async (req, res) => {
+      const email = req.params.email;
+      console.log(email);
+      const result = await requestedPropertiesCollection
+        .find({ "agent.email": email })
+        .toArray();
       res.send(result);
     });
 
