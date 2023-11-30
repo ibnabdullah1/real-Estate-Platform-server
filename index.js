@@ -18,22 +18,12 @@ app.use(
     credentials: true,
   })
 );
-// app.use(
-//   cors({
-//     origin: [
-//       "http://localhost:5173",
-//       "https://realestatecommunity-99b97.web.app/",
-//     ],
-//     credentials: true,
-//   })
-// );
+
 app.use(express.json());
 app.use(cookieParser());
-//STRIPE_TEST_SECRET_KEY
 const stripe = require("stripe")(`${process.env.STRIPE_TEST_SECRET_KEY}`);
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.rjnekog.mongodb.net/?retryWrites=true&w=majority`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -110,6 +100,11 @@ async function run() {
         },
         options
       );
+      res.send(result);
+    });
+
+    app.get("/users", async (req, res) => {
+      const result = await User.find().toArray();
       res.send(result);
     });
 
@@ -418,7 +413,6 @@ async function run() {
       const id = req.params.id;
       const data = await req.body;
       const filter = { _id: id };
-      // console.log(filter);
       const updateDoc = {
         $set: {
           status: data.status,
@@ -468,8 +462,10 @@ async function run() {
     app.post("/advertisement", async (req, res) => {
       try {
         const advertisement = req.body;
+        console.log(advertisement);
         const collectionLength =
           await advertiseCollection.estimatedDocumentCount();
+        console.log(collectionLength);
         if (collectionLength < 6) {
           const result = await advertiseCollection.insertOne(advertisement);
           res.send({ message: "success" });
@@ -491,6 +487,7 @@ async function run() {
       const id = req.params.id;
       const query = { _id: id };
       const result = await advertiseCollection.deleteOne(query);
+      console.log(result);
       res.send(result);
     });
 
