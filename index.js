@@ -3,6 +3,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const { default: mongoose } = require("mongoose");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
@@ -10,10 +11,22 @@ const port = process.env.PORT || 5000;
 // middleware
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: [
+      "http://localhost:5173",
+      "https://realestatecommunity-99b97.web.app",
+    ],
     credentials: true,
   })
 );
+// app.use(
+//   cors({
+//     origin: [
+//       "http://localhost:5173",
+//       "https://realestatecommunity-99b97.web.app/",
+//     ],
+//     credentials: true,
+//   })
+// );
 app.use(express.json());
 app.use(cookieParser());
 //STRIPE_TEST_SECRET_KEY
@@ -53,6 +66,7 @@ async function run() {
     await client.connect();
 
     const usersCollection = client.db("realEstateDB").collection("users");
+    const reportCollection = client.db("realEstateDB").collection("reports");
     const paymentCollection = client.db("realEstateDB").collection("payments");
     const requestedPropertiesCollection = client
       .db("realEstateDB")
@@ -334,11 +348,31 @@ async function run() {
       res.send(result);
     });
 
+    // Report related api
+    app.post("/reports", async (req, res) => {
+      const review = req.body;
+      const result = await reportCollection.insertOne(review);
+      res.send(result);
+    });
+    // Get all reports
+    app.get("/reports", async (req, res) => {
+      const result = await reportCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.delete("/reportProperty/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await requestedPropertiesCollection.deleteOne(query);
+      res.send(result);
+    });
+
     // user  offer related api
 
-    // add offersItem
-    app.post("/addedOffer", async (req, res) => {
+    // // add offersItem
+    app.post("/addedOffers", verifyToken, async (req, res) => {
       const offerItem = req.body;
+      // console.log(offerItem);
       const result = await offersCollection.insertOne(offerItem);
       res.send(result);
     });
@@ -384,7 +418,7 @@ async function run() {
       const id = req.params.id;
       const data = await req.body;
       const filter = { _id: id };
-      console.log(filter);
+      // console.log(filter);
       const updateDoc = {
         $set: {
           status: data.status,
@@ -464,7 +498,7 @@ async function run() {
 
     app.get("/fraudAgent/:email", async (req, res) => {
       const email = req.params.email;
-      console.log(email);
+      // console.log(email);
       const result = await requestedPropertiesCollection
         .find({ "agent.email": email })
         .toArray();
