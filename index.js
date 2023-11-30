@@ -103,12 +103,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/users", async (req, res) => {
-      const result = await User.find().toArray();
-      res.send(result);
-    });
-
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, async (req, res) => {
       const result = await usersCollection.find().toArray();
       res.send(result);
     });
