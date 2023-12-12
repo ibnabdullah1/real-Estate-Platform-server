@@ -3,7 +3,6 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
-const { default: mongoose } = require("mongoose");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
@@ -53,7 +52,7 @@ const verifyToken = (req, res, next) => {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const usersCollection = client.db("realEstateDB").collection("users");
     const reportCollection = client.db("realEstateDB").collection("reports");
@@ -103,8 +102,14 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/users", verifyToken, async (req, res) => {
+    app.get("/users", async (req, res) => {
       const result = await usersCollection.find().toArray();
+      res.send(result);
+    });
+    app.get("/agents", async (req, res) => {
+      const query = { role: "agent" };
+      const result = await usersCollection.find(query).toArray();
+
       res.send(result);
     });
 
