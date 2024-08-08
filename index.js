@@ -5,7 +5,7 @@ const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 3000;
 
 // middleware
 app.use(
@@ -13,6 +13,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "https://realestatecommunity-99b97.web.app",
+      "https://real-estate-community.web.app",
     ],
     credentials: true,
   })
@@ -80,7 +81,6 @@ async function run() {
 
     app.post("/logout", async (req, res) => {
       const user = req.body;
-      console.log("logging out", user);
       res.clearCookie("token", { maxAge: 0 }).send({ success: true });
     });
 
@@ -129,7 +129,7 @@ async function run() {
     });
 
     app.get("/requestedProperty", async (req, res) => {
-      const query = { status: "verified" };
+      const query = { status: "verified", isDeleted: { $ne: true } };
       const result = await requestedPropertiesCollection.find(query).toArray();
       res.send(result);
     });
@@ -197,12 +197,21 @@ async function run() {
     });
 
     // Agent properties deleted api
-    app.delete("/agentProperty/:id", async (req, res) => {
+    app.put("/agentPropertyDeletedStatus/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
-      const result = await requestedPropertiesCollection.deleteOne(query);
+      const updateDoc = {
+        $set: {
+          isDeleted: true,
+        },
+      };
+      const result = await requestedPropertiesCollection.updateOne(
+        query,
+        updateDoc
+      );
       res.send(result);
     });
+
     app.get("/properties/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -213,14 +222,13 @@ async function run() {
     app.get("/addedProperty/agent/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       const result = await requestedPropertiesCollection
-        .find({ "agent.email": email })
+        .find({ "agent.email": email, isDeleted: { $ne: true } })
         .toArray();
       res.send(result);
     });
 
     app.get("/addedProperty/:id", async (req, res) => {
       const id = req.params.id;
-      // console.log(id);
       const query = { _id: new ObjectId(id) };
       const result = await requestedPropertiesCollection.findOne(query);
       res.send(result);
@@ -229,11 +237,13 @@ async function run() {
     // search input based get properties
     app.get("/searchProperties/:name", async (req, res) => {
       const name = req.params.name;
+
       const result = await requestedPropertiesCollection
         .find({
-          $or: [{ title: { $regex: name, $options: "i" } }],
+          $or: [{ name: { $regex: name, $options: "i" } }],
         })
         .toArray();
+
       res.send(result);
     });
 
@@ -317,6 +327,23 @@ async function run() {
       res.send(result);
     });
 
+    app.put("/property-review/:id", async (req, res) => {
+      const id = req.params.id;
+      const data = await req.body;
+      const filter = { _id: new ObjectId(id) };
+
+      const updateDoc = {
+        $push: {
+          reviewsCollection: data,
+        },
+      };
+      const result = await requestedPropertiesCollection.updateOne(
+        filter,
+        updateDoc
+      );
+      res.send(result);
+    });
+
     // reviews related api
     // Save user reviews in DB
     app.post("/reviews", async (req, res) => {
@@ -336,6 +363,7 @@ async function run() {
       const result = await reviewsCollection.find().toArray();
       res.send(result);
     });
+
     app.delete("/review/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
@@ -367,7 +395,7 @@ async function run() {
     // // add offersItem
     app.post("/addedOffers", verifyToken, async (req, res) => {
       const offerItem = req.body;
-      // console.log(offerItem);
+
       const result = await offersCollection.insertOne(offerItem);
       res.send(result);
     });
@@ -376,7 +404,6 @@ async function run() {
 
     app.get("/addedOfferPayment/:id", async (req, res) => {
       const id = req.params.id;
-      // console.log(id);
       const query = { _id: id };
       const result = await offersCollection.findOne(query);
       res.send(result);
@@ -462,10 +489,8 @@ async function run() {
     app.post("/advertisement", async (req, res) => {
       try {
         const advertisement = req.body;
-        console.log(advertisement);
         const collectionLength =
           await advertiseCollection.estimatedDocumentCount();
-        console.log(collectionLength);
         if (collectionLength < 6) {
           const result = await advertiseCollection.insertOne(advertisement);
           res.send({ message: "success" });
@@ -487,7 +512,6 @@ async function run() {
       const id = req.params.id;
       const query = { _id: id };
       const result = await advertiseCollection.deleteOne(query);
-      console.log(result);
       res.send(result);
     });
 
@@ -495,7 +519,6 @@ async function run() {
 
     app.get("/fraudAgent/:email", async (req, res) => {
       const email = req.params.email;
-      // console.log(email);
       const result = await requestedPropertiesCollection
         .find({ "agent.email": email })
         .toArray();
